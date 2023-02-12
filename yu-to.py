@@ -74,7 +74,7 @@ def decode_yst_file(file_name):
             if arg_type == "text":
                 name, _, quote = rsc_arg.partition(':')
 
-                # Handle text()import os
+                # Handle text()
                 if quote:
                     quote = quote.strip().strip('“').strip('”')
                     name = name.replace('／', '/')
@@ -139,6 +139,7 @@ def encode_renpy_file(arg_list):
             if not any(single_arg['func_arg'][0] in string for string in init_list):
                 init_list.append(f"image {single_arg['func_arg'][0]} = im.Scale(\"images/bg/{single_arg['func_arg'][0]}.png\", 1920, 1080)")
             script_list.append(f"scene {single_arg['func_arg'][0]}")
+            script_list.append("with dissolve")
 
         if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "es.SP.ST.SET":
             chara = (single_arg['func_arg'][1].split("_")[1][:3])
@@ -195,7 +196,8 @@ def encode_renpy_file(arg_list):
             else:
                 if sound_type != "voice":
                     script_list.append(f"stop {sound_type}")
-        if single_arg['arg_type'] == "jump" and single_arg['func_arg'][0].find('_') != -1:
+        
+        if single_arg['arg_type'] == "jump" and single_arg['func_arg'][0][:4].find('_') != -1:
             script_list.append(f"call yu_{single_arg['func_arg'][0]}")
 
     init_list.sort()
@@ -211,6 +213,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', dest='input', type=str, required=True, help='Folder that contains the decrypted yu-ris files')
     parser.add_argument('-o', '--output', dest='output', type=str, required=True, help='Folder where to drop the generated ren\'py files')
+    parser.add_argument('-d', '--debug', action='store_true', help='Creates debug files on the output folder')
     args = parser.parse_args()
 
     # Sanity check since the user might be insane
@@ -238,3 +241,9 @@ if __name__ == "__main__":
             f.write(f"label yu_{yst_dict_it['pred_name']}:\n")
             f.write(renpy_base)
             f.write("\nreturn")
+        if args.debug:
+            debug_file = os.path.join (args.output, yst_dict_it['pred_file'] + "_arg_debug.txt")
+            print(debug_file)
+            with open(debug_file, 'w') as f:
+                for single_arg in arg_list:
+                    f.write(str(single_arg) + "\n")
