@@ -25,6 +25,8 @@ def read_extract_yst_list(folder_path):
                 match chap_split[0]:
                     case "01-op":
                         pred_name = f"00_op_{chap_split[1].split('-')[0]}"
+                    case "02-前半":
+                        pred_name = f"01_kyo_{chap_split[2].split('-')[0]}"
                 yst_dict.append({
                     'pred_file': f'yst{str(yst_index).zfill(5)}',
                     'base_name': base_name,
@@ -70,7 +72,9 @@ def decode_yst_file(file_name):
                     rsc_arg = re.findall(r'\[([^:]*)\]', line)[1]
                 except IndexError:
                     rsc_arg = re.findall(r"\'([^:]*)\'", line)[0]
-            rsc_idx = re.findall(r'rsc_data\[(\d)\]', line)[0]
+
+            rsc_idx = re.findall(r'rsc_data\[(\d*)\]', line)[0]
+
             if arg_type == "text":
                 name, _, quote = rsc_arg.partition(':')
 
@@ -99,7 +103,7 @@ def decode_yst_file(file_name):
                     arg_dic['func_arg'] = []
 
             # Unknown function
-            else:# Autogenerate whole project
+            else:
 
                 try:
                     arg_dic['func_arg'].append(rsc_arg)
@@ -136,8 +140,11 @@ def encode_renpy_file(arg_list):
                 script_list.append(f"\"{single_arg['quote']}\"")
 
         if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "MAC.BG":
-            if not any(single_arg['func_arg'][0] in string for string in init_list):
-                init_list.append(f"image {single_arg['func_arg'][0]} = im.Scale(\"images/bg/{single_arg['func_arg'][0]}.png\", 1920, 1080)")
+            try:
+                if not any(single_arg['func_arg'][0] in string for string in init_list):
+                    init_list.append(f"image {single_arg['func_arg'][0]} = im.Scale(\"images/bg/{single_arg['func_arg'][0]}.png\", 1920, 1080)")
+            except:
+                continue
             script_list.append(f"scene {single_arg['func_arg'][0]}")
             script_list.append("with dissolve")
 
@@ -232,15 +239,14 @@ if __name__ == "__main__":
         print(f"Converting {yst_dict_it['pred_file']}: {yst_dict_it['base_name']} - {yst_dict_it['pred_name']}")
         yst_file_path = os.path.join(args.input, yst_dict_it['pred_file'] )
         arg_list = decode_yst_file(yst_file_path + ".txt")
-        # for single_arg in arg_list:
-        #     if single_arg['arg_type'] == "jump":
-        #         print(single_arg)
+
         renpy_base = encode_renpy_file(arg_list)
         renpy_file = os.path.join (args.output, yst_dict_it['pred_file'] + ".rpy")
         with open(renpy_file, 'w') as f:
             f.write(f"label yu_{yst_dict_it['pred_name']}:\n")
             f.write(renpy_base)
             f.write("\nreturn")
+
         if args.debug:
             debug_file = os.path.join (args.output, yst_dict_it['pred_file'] + "_arg_debug.txt")
             print(debug_file)
