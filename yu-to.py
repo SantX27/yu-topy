@@ -1,11 +1,18 @@
+import os
 import re
+import sys
+import argparse
 
-def read_real_file_list(file_name):
-    with open(file_name, 'r', encoding='cp932', errors='ignore') as f:
+def read_extract_yst_list(folder_path):
+    yst_list_path = os.path.join(folder_path, "yst_list.ybn")
+    if not os.path.exists(yst_list_path):
+        print("We're missing dat yst_list.ybn, chief.")
+        print("Check if you're running me in the right folder")
+        quit()
+    
+    with open(yst_list_path, 'r', encoding='cp932', errors='ignore') as f:
         list_lines = f.readlines()
-    return list_lines
 
-def extract_yst_dict(list_lines):
     yst_dict = []
     yst_index = 0
     for single_list in list_lines:
@@ -13,9 +20,15 @@ def extract_yst_dict(list_lines):
         for og_name in og_names:
             if "userscript" in og_name:
                 base_name = og_name.split("\\", 3)[3]
+                # Try to predict the implicit file name using the yst_list
+                chap_split = base_name.split("\\", 3)
+                match chap_split[0]:
+                    case "01-op":
+                        pred_name = f"00_op_{chap_split[1].split('-')[0]}"
                 yst_dict.append({
                     'pred_file': f'yst{str(yst_index).zfill(5)}',
-                    'base_name': base_name
+                    'base_name': base_name,
+                    'pred_name': pred_name
                 })
             yst_index += 1
     return yst_dict
@@ -61,7 +74,7 @@ def decode_yst_file(file_name):
             if arg_type == "text":
                 name, _, quote = rsc_arg.partition(':')
 
-                # Handle text()
+                # Handle text()import os
                 if quote:
                     quote = quote.strip().strip('“').strip('”')
                     name = name.replace('／', '/')
@@ -86,7 +99,8 @@ def decode_yst_file(file_name):
                     arg_dic['func_arg'] = []
 
             # Unknown function
-            else:
+            else:# Autogenerate whole project
+
                 try:
                     arg_dic['func_arg'].append(rsc_arg)
                 except KeyError:
@@ -97,6 +111,18 @@ def decode_yst_file(file_name):
             arg_list.append(arg_dic)
     return arg_list
 
+#TODO
+# Sprite positioning
+# * Base
+# - Precise positioning
+# - Zoom on character (SP001 - SP002)
+# - Better transitioningimport os
+# Music
+# * Base
+# - Separate audio channels * character
+# - Sustain voice until next voice 
+# Scenario select / jump
+# Autogenerate whole project
 def encode_renpy_file(arg_list):
     init_list = []
     script_list = []
@@ -155,33 +181,60 @@ def encode_renpy_file(arg_list):
                     sound_type = "music"
                     sound_name = single_arg['func_arg'][1][2:] + ".ogg"
                     sound_path = "audio/bgm/" + sound_name
-                case "0B ":
+                case "0B " | "0C ":
                     sound_type = "sound"
                     sound_name = single_arg['func_arg'][1].lower() + ".ogg"
                     sound_path = "audio/se/" + sound_name
-            if sound_type == "voice":
-                script_list.append(f"{sound_type} \"{sound_path}\"")
-                script_list.append("voice sustain")
+                
+            if single_arg['func_arg'][1]:     
+                if sound_type == "voice":
+                    script_list.append(f"{sound_type} \"{sound_path}\"")
+                    script_list.append("voice sustain")
+                else:
+                    script_list.append(f"play {sound_type} \"{sound_path}\"")
             else:
-                script_list.append(f"play {sound_type} \"{sound_path}\"")
+                if sound_type != "voice":
+                    script_list.append(f"stop {sound_type}")
+        if single_arg['arg_type'] == "jump" and single_arg['func_arg'][0].find('_') != -1:
+            script_list.append(f"call yu_{single_arg['func_arg'][0]}")
 
     init_list.sort()
-    print('\n'.join(init_list))
-    print()
-    print('\n'.join(script_list))
-
-    # for single_arg in arg_list:
-    #     if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "es.SND":
-    #         print(single_arg)
-        # if single_arg['arg_type'] == "text":
-        #     input("Press Enter to continue...")
-
-    # for single_arg in arg_list:
-    #     print(single_arg)script
+    # print('\n'.join(init_list))
+    # print()
+    # print('\n'.join(script_list))
+    # It's fucking ugly but it does it
+    return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
 
 if __name__ == "__main__":
     print("yu-topy ~ a yu-ris to ren'py converter")
-    arg_list = decode_yst_file("yst00141.txt")
-    encode_renpy_file(arg_list)
+    print("--------------------------------------")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', dest='input', type=str, required=True, help='Folder that contains the decrypted yu-ris files')
+    parser.add_argument('-o', '--output', dest='output', type=str, required=True, help='Folder where to drop the generated ren\'py files')
+    args = parser.parse_args()
 
+    # Sanity check since the user might be insane
+    if not os.path.exists(args.input):
+        print("The folder you specified DOESN'T EXIST? WHAT!")
+        print(f"Tried to access: {args.input}")
+        quit()
 
+    if not os.path.exists(args.output):
+        print("The folder you specified DOESN'T EXIST? WHAT!")
+        print(f"Tried to access: {args.output}")
+        quit()
+    
+    yst_dict = read_extract_yst_list(args.input)
+    for yst_dict_it in yst_dict:
+        print(f"Converting {yst_dict_it['pred_file']}: {yst_dict_it['base_name']} - {yst_dict_it['pred_name']}")
+        yst_file_path = os.path.join(args.input, yst_dict_it['pred_file'] )
+        arg_list = decode_yst_file(yst_file_path + ".txt")
+        # for single_arg in arg_list:
+        #     if single_arg['arg_type'] == "jump":
+        #         print(single_arg)
+        renpy_base = encode_renpy_file(arg_list)
+        renpy_file = os.path.join (args.output, yst_dict_it['pred_file'] + ".rpy")
+        with open(renpy_file, 'w') as f:
+            f.write(f"label yu_{yst_dict_it['pred_name']}:\n")
+            f.write(renpy_base)
+            f.write("\nreturn")
