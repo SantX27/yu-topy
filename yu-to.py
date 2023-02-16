@@ -127,6 +127,8 @@ def decode_yst_file(file_name):
 # - Sustain voice until next voice 
 # Scenario select / jump
 # Autogenerate whole project
+# * OP
+# - 1st Common
 def encode_renpy_file(arg_list):
     init_list = []
     script_list = []
@@ -248,7 +250,8 @@ if __name__ == "__main__":
             f.write("\nreturn")
 
         if args.debug:
-            debug_file = os.path.join (args.output, yst_dict_it['pred_file'] + "_arg_debug.txt")
+            debug_file = os.path.join (args.output, "debug", yst_dict_it['pred_file'] + "_arg_debug.txt")
+            #create folder
             print(debug_file)
             with open(debug_file, 'w') as f:
                 for single_arg in arg_list:
