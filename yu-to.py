@@ -59,8 +59,8 @@ def decode_yst_file(file_name):
 
             arg_dic = {
                 'inst_arg': inst_arg,
-                'num_args': num_args,
-                'arg_type': arg_type,
+                #'num_args': num_args,
+                'arg_type': arg_type
                 }
         # Decode argument data
         if "rsc_data" in line:
@@ -120,7 +120,7 @@ def decode_yst_file(file_name):
 # * Base
 # - Precise positioning
 # - Zoom on character (SP001 - SP002)
-# - Better transitioningimport os
+# - Better transitioning
 # Music
 # * Base
 # - Separate audio channels * character
@@ -129,6 +129,7 @@ def decode_yst_file(file_name):
 # Autogenerate whole project
 # * OP
 # - 1st Common
+
 def encode_renpy_file(arg_list):
     init_list = []
     script_list = []
@@ -171,7 +172,7 @@ def encode_renpy_file(arg_list):
             script_list.append(f"show {chara} {single_arg['func_arg'][1]}")
         
         if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "es.SP.X.SET":
-            if "show" in script_list[-1]:
+            if "show" in script_list[-1] and not "at" in script_list[-1]:
                 # print(type(single_arg['func_arg'][1]))
                 if isinstance(single_arg['func_arg'][1], list):
                     script_list[-1] += " at left"
@@ -208,12 +209,44 @@ def encode_renpy_file(arg_list):
         
         if single_arg['arg_type'] == "jump" and single_arg['func_arg'][0][:4].find('_') != -1:
             script_list.append(f"call yu_{single_arg['func_arg'][0]}")
+            try:
+                # print(choice_list)
+                # print(f"choice_pos: {choice_pos}")
+                script_list.append(f"\nlabel yu_{choice_list[choice_pos]['choice_id']}:")
+                choice_pos += 1
+            except:
+                continue #Not sure it's the right way but for now screw it
+
+        if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "ES.SEL.GO":
+            choice_pos = 0
+            choice_list = []
+            for choice_id in single_arg['func_arg']:
+                if choice_id:
+                    choice_list.append({
+                        'choice_id': choice_id
+                    })
+
+        if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "ES.SEL.SET":
+            for idx, choice_name in enumerate(single_arg['func_arg']):
+                if choice_name:
+                    choice_list[idx]['choice_name'] = choice_name.strip().strip('“').strip('”')
+            script_list.append("menu:")
+            if choice_list:
+                for choice in choice_list:
+                    script_list.append(f"    \"{choice['choice_name']}\":")
+                    script_list.append(f"        jump yu_{choice['choice_id']}")
+                # print(choice_list)
+                # print(f"choice_pos: {choice_pos}")
+                script_list.append(f"\nlabel yu_{choice_list[choice_pos]['choice_id']}:")
+                choice_pos += 1
+
+
 
     init_list.sort()
     # print('\n'.join(init_list))
     # print()
     # print('\n'.join(script_list))
-    # It's fucking ugly but it does it
+    # It's fucking ugly but that just fucking does it
     return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
 
 if __name__ == "__main__":
@@ -250,8 +283,10 @@ if __name__ == "__main__":
             f.write("\nreturn")
 
         if args.debug:
-            debug_file = os.path.join (args.output, "debug", yst_dict_it['pred_file'] + "_arg_debug.txt")
-            #create folder
+            debug_dir = os.path.join(args.output, "debug")
+            if not os.path.exists(debug_dir):
+                os.makedirs(debug_dir)
+            debug_file = os.path.join(debug_dir, yst_dict_it['pred_file'] + "_arg_debug.txt")
             print(debug_file)
             with open(debug_file, 'w') as f:
                 for single_arg in arg_list:
