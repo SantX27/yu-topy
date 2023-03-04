@@ -18,15 +18,58 @@ def read_extract_yst_list(folder_path):
     for single_list in list_lines:
         og_names = re.findall(r'(?:data)(.*?)(?:.yst|.txt)', single_list)
         for og_name in og_names:
+            # print(og_name)
             if "userscript" in og_name:
                 base_name = og_name.split("\\", 3)[3]
                 # Try to predict the implicit file name using the yst_list
                 chap_split = base_name.split("\\", 3)
+                #print(chap_split)
                 match chap_split[0]:
                     case "01-op":
                         pred_name = f"00_op_{chap_split[1].split('-')[0]}"
                     case "02-前半":
-                        pred_name = f"01_kyo_{chap_split[2].split('-')[0]}"
+                        match chap_split[1]:
+                            case "01-前半・共通":
+                                pred_name = f"01_kyo_{chap_split[2].split('-')[0]}"
+                            case "02-前半・合歓":
+                                pred_name = f"01_nem_{chap_split[2].split('-')[0]}"
+                            case "03-前半・叶":
+                                pred_name = f"01_kan_{chap_split[2].split('-')[0]}"
+                            case "04-前半・凛音":
+                                pred_name = f"01_rin_{chap_split[2].split('-')[0]}"
+                            case "05-前半・梨香":
+                                pred_name = f"01_rik_{chap_split[2].split('-')[0]}"
+                            case "06-前半・菜月":
+                                pred_name = f"01_nat_{chap_split[2].split('-')[0]}"
+                            case "08-前半・サッドエンド用":
+                                pred_name = f"01_sad_{chap_split[2].split('-')[0]}"
+                    case "03-後半":
+                        match chap_split[1]:
+                            case "01-後半・共通":
+                                pred_name = f"02_kyo_{chap_split[2].split('-')[0]}"
+                            case "02-後半・合歓":
+                                pred_name = f"02_nem_{chap_split[2].split('-')[0]}"
+                            case "03-後半・叶":
+                                pred_name = f"02_kan_{chap_split[2].split('-')[0]}"
+                            case "04-後半・凛音":
+                                pred_name = f"02_rin_{chap_split[2].split('-')[0]}"
+                            case "05-後半・梨香":
+                                pred_name = f"02_rik_{chap_split[2].split('-')[0]}"
+                            case "06-後半・菜月":
+                                pred_name = f"02_nat_{chap_split[2].split('-')[0]}"
+                            case "07-後半・暗黒":
+                                pred_name = f"02_drk_{chap_split[2].split('-')[0]}"
+
+                    case "04-裏・真相":
+                        match chap_split[1]:
+                            case "01-裏":
+                                pred_name = f"03_kan_{chap_split[2].split('-')[0]}"
+                            case "02-真相":
+                                pred_name = f"03_nem_{chap_split[2].split('-')[0]}"
+                            case "03-真相ＥＤ":
+                                pred_name = f"03_end_{chap_split[2].split('-')[0]}"
+                    case _:
+                        pred_name = f"69_unk_{chap_split[0]}"
                 yst_dict.append({
                     'pred_file': f'yst{str(yst_index).zfill(5)}',
                     'base_name': base_name,
@@ -54,6 +97,8 @@ def decode_yst_file(file_name):
                     arg_type = "stop"
                 case "0x1C":
                     arg_type = "jump"
+                case "0x27":
+                    arg_type = "vars"
                 case _:
                     arg_type = "unkn"
 
@@ -133,6 +178,8 @@ def decode_yst_file(file_name):
 def encode_renpy_file(arg_list):
     init_list = []
     script_list = []
+    segs_dict = {}
+    segs_enabled = False
 
     for single_arg in arg_list:
 
@@ -239,15 +286,35 @@ def encode_renpy_file(arg_list):
                 # print(f"choice_pos: {choice_pos}")
                 script_list.append(f"\nlabel yu_{choice_list[choice_pos]['choice_id']}:")
                 choice_pos += 1
+        
+        if single_arg['arg_type'] == "vars" and "chara_SEL" in single_arg['func_arg'][1] and segs_enabled is False: segs_enabled = True
 
+        if single_arg['arg_type'] == "vars" and single_arg['func_arg'][1][:4].find('_') != -1 and segs_enabled is True:
+            segs_jump = single_arg['func_arg'][1]
+            char_segs = segs_jump.split("_")[1]
+            try:
+                if not segs_jump in segs_dict[char_segs]:
+                    segs_dict[char_segs].append(segs_jump)
+            except:
+                segs_dict[char_segs] = [segs_jump]
+            # if not single_arg['func_arg'][1] in segs_list:
+            #     segs_list.append(single_arg['func_arg'][1])
+            #if not chara == "sad":
 
-
+    # print(segs_dict)
     init_list.sort()
     # print('\n'.join(init_list))
     # print()
     # print('\n'.join(script_list))
     # It's fucking ugly but that just fucking does it
-    return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
+    if segs_enabled is True:
+        # for key,item in segs_dict:
+        #     match key:
+        #         case nemu:
+
+        return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
+    else:
+        return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
 
 if __name__ == "__main__":
     print("yu-topy ~ a yu-ris to ren'py converter")
@@ -272,9 +339,9 @@ if __name__ == "__main__":
     yst_dict = read_extract_yst_list(args.input)
     for yst_dict_it in yst_dict:
         print(f"Converting {yst_dict_it['pred_file']}: {yst_dict_it['base_name']} - {yst_dict_it['pred_name']}")
-        yst_file_path = os.path.join(args.input, yst_dict_it['pred_file'] )
+        #print(f"{yst_dict_it['pred_file']}: {'・'.join(yst_dict_it['base_name'].split('・')[:2])} {yst_dict_it['pred_name']}")
+        yst_file_path = os.path.join(args.input, yst_dict_it['pred_file'])
         arg_list = decode_yst_file(yst_file_path + ".txt")
-
         renpy_base = encode_renpy_file(arg_list)
         renpy_file = os.path.join (args.output, yst_dict_it['pred_file'] + ".rpy")
         with open(renpy_file, 'w') as f:
@@ -287,7 +354,7 @@ if __name__ == "__main__":
             if not os.path.exists(debug_dir):
                 os.makedirs(debug_dir)
             debug_file = os.path.join(debug_dir, yst_dict_it['pred_file'] + "_arg_debug.txt")
-            print(debug_file)
+            #print(debug_file)
             with open(debug_file, 'w') as f:
                 for single_arg in arg_list:
                     f.write(str(single_arg) + "\n")
