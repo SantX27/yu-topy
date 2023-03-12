@@ -231,7 +231,7 @@ def encode_renpy_file(arg_list):
 
         if single_arg['arg_type'] == "eris" and single_arg['func_name'] == "es.SND":
             match single_arg['func_arg'][0]:
-                case "15 ":
+                case "15 " | "33 ":
                     sound_type = "voice"
                     sound_name = single_arg['func_arg'][1].lower() + ".ogg"
                     sound_path = "audio/voice/" + sound_name
@@ -239,10 +239,14 @@ def encode_renpy_file(arg_list):
                     sound_type = "music"
                     sound_name = single_arg['func_arg'][1][2:] + ".ogg"
                     sound_path = "audio/bgm/" + sound_name
-                case "0B " | "0C ":
+                case "0B " | "0C " | "29 ":
                     sound_type = "sound"
                     sound_name = single_arg['func_arg'][1].lower() + ".ogg"
                     sound_path = "audio/se/" + sound_name
+                case _:
+                    #print("Undefined sound!")
+                    #print(single_arg)
+                    continue
                 
             if single_arg['func_arg'][1]:     
                 if sound_type == "voice":
@@ -287,7 +291,10 @@ def encode_renpy_file(arg_list):
                 script_list.append(f"\nlabel yu_{choice_list[choice_pos]['choice_id']}:")
                 choice_pos += 1
         
-        if single_arg['arg_type'] == "vars" and "chara_SEL" in single_arg['func_arg'][1] and segs_enabled is False: segs_enabled = True
+        if single_arg['arg_type'] == "vars" and "chara_SEL" in single_arg['func_arg'][1] and segs_enabled is False:
+            segs_enabled = True
+            init_list.append("define choice_time = 0")
+            script_list.append("menu:")
 
         if single_arg['arg_type'] == "vars" and single_arg['func_arg'][1][:4].find('_') != -1 and segs_enabled is True:
             segs_jump = single_arg['func_arg'][1]
@@ -295,8 +302,15 @@ def encode_renpy_file(arg_list):
             try:
                 if not segs_jump in segs_dict[char_segs]:
                     segs_dict[char_segs].append(segs_jump)
+                else:
+                    continue
+                script_list.append('        ' + f"jump yu_{segs_dict[char_segs][-1]}")
             except:
                 segs_dict[char_segs] = [segs_jump]
+                script_list.append('    ' + f"\"LETS SEGS {char_segs}\":")
+                script_list.append('        ' + f"jump yu_{segs_dict[char_segs][-1]}")
+
+            
             # if not single_arg['func_arg'][1] in segs_list:
             #     segs_list.append(single_arg['func_arg'][1])
             #if not chara == "sad":
@@ -307,14 +321,20 @@ def encode_renpy_file(arg_list):
     # print()
     # print('\n'.join(script_list))
     # It's fucking ugly but that just fucking does it
-    if segs_enabled is True:
+
+    # waiting for the supreme judgement
+    #if segs_enabled is True:
         # for key,item in segs_dict:
         #     match key:
         #         case nemu:
-
-        return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
-    else:
-        return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
+        #print(segs_dict)
+        
+    #     for segs in segs_dict:
+    #         print(segs)
+    #         print(segs_dict[segs])
+    #     return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
+    # else:
+    return '    ' +'\n    '.join(init_list) + '\n\n    ' + '\n    '.join(script_list)
 
 if __name__ == "__main__":
     print("yu-topy ~ a yu-ris to ren'py converter")
