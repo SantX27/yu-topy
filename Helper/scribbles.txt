@@ -1,0 +1,92 @@
+INT[@SEX = 69]
+    0x24 is INT:
+    inst_arg[0x00000000]::[type:0x24, arg_cnt:0x2][0x00]
+    _arg[0]::[value:0x0000][type:0x0003][length:0x00000006, offset:0x00000000]
+        rsc_data[0][rsc_type:0x48] [40 F8 10 ]  -> @10F8
+    _arg[1]::[value:0x0000][type:0x0001][length:0x00000004, offset:0x00000006]
+        rsc_data[0][rsc_type:0x42] [45 ]        -> 69
+-------------------------------------------------------------------------------------
+IF[@SEX==69]
+    0x1E is IF:
+    inst_arg[0x00000001]::[type:0x1E, arg_cnt:0x3][0x00]
+
+    SINGLE CHECK:
+    _arg[0]::[value:0x0000][type:0x0001][length:0x0000000D, offset:0x0000000A]
+        rsc_data[0][rsc_type:0x48] [40 F8 10 ]  -> @10F8
+        rsc_data[1][rsc_type:0x42] [45 ]        -> 69
+        VARIANTS:
+        rsc_data[2][rsc_type:0x3D] []           -> ==
+        rsc_data[2][rsc_type:0x21] []           -> !=
+        rsc_data[2][rsc_type:0x3E] []           -> >
+        rsc_data[2][rsc_type:0x5A] []           -> >=
+        rsc_data[2][rsc_type:0x3C] []           -> <
+        rsc_data[2][rsc_type:0x53] []           -> <=
+
+    DOUBLE CHECK:
+    _arg[0]::[value:0x0000][type:0x0001][length:0x0000001D, offset:0x0000000A]
+        rsc_data[0][rsc_type:0x48] [40 F8 10 ]  -> VAR 1
+        rsc_data[1][rsc_type:0x42] [45 ]
+        rsc_data[2][rsc_type:0x53] []
+        rsc_data[3][rsc_type:0x48] [40 F8 10 ]  -> VAR 2
+        rsc_data[4][rsc_type:0x42] [45 ]
+        rsc_data[5][rsc_type:0x5A] []
+        VARIANTS:
+        rsc_data[6][rsc_type:0x26] []           -> &&
+        rsc_data[6][rsc_type:0x7C] []           -> ||
+
+
+    _arg[1]::[value:0x0000][type:0x0000][length:0x00000000, offset:0x00000000]
+        idx_val = 0x00000000
+    _arg[2]::[value:0x0000][type:0x0000][length:0x00000002, offset:0x00000017]
+        idx_val = 0x00000002
+
+    inst_arg[0x00000002]::[type:0x22, arg_cnt:0x0][0x00]
+-------------------------------------------------------------------------------------
+IF
+
+inst_arg[0x00000000]::[type:0x24, arg_cnt:0x2][0x00]
+  _arg[0]::[value:0x0000][type:0x0003][length:0x00000006, offset:0x00000000]
+    rsc_data[0][rsc_type:0x48] [40 F8 10 ]
+  _arg[1]::[value:0x0000][type:0x0001][length:0x00000004, offset:0x00000006]
+    rsc_data[0][rsc_type:0x42] [45 ]
+
+inst_arg[0x00000001]::[type:0x1E, arg_cnt:0x3][0x00]
+  _arg[0]::[value:0x0000][type:0x0001][length:0x0000000D, offset:0x0000000A]
+    rsc_data[0][rsc_type:0x48] [40 F8 10 ]
+    rsc_data[1][rsc_type:0x42] [45 ]
+    rsc_data[2][rsc_type:0x3C] []
+  _arg[1]::[value:0x0000][type:0x0000][length:0x00000000, offset:0x00000000]
+    idx_val = 0x00000000
+  _arg[2]::[value:0x0000][type:0x0000][length:0x00000002, offset:0x00000017]
+    idx_val = 0x00000002
+
+inst_arg[0x00000002]::[type:0x22, arg_cnt:0x0][0x00]
+
+inst_arg[0x00000003]::[type:0xC, arg_cnt:0x0][0x00]
+-------------------------------------------------------------------------------------
+IF..ELSE
+
+inst_arg[0x00000000]::[type:0x24, arg_cnt:0x2][0x00]
+  _arg[0]::[value:0x0000][type:0x0003][length:0x00000006, offset:0x00000000]
+    rsc_data[0][rsc_type:0x48] [40 F8 10 ]
+  _arg[1]::[value:0x0000][type:0x0001][length:0x00000004, offset:0x00000006]
+    rsc_data[0][rsc_type:0x42] [45 ]
+
+inst_arg[0x00000001]::[type:0x1E, arg_cnt:0x3][0x00]
+  _arg[0]::[value:0x0000][type:0x0001][length:0x0000000D, offset:0x0000000A]
+    rsc_data[0][rsc_type:0x48] [40 F8 10 ]
+    rsc_data[1][rsc_type:0x42] [45 ]
+    rsc_data[2][rsc_type:0x3C] []
+  _arg[1]::[value:0x0000][type:0x0000][length:0x00000003, offset:0x00000017]
+    idx_val = 0x00000003
+  _arg[2]::[value:0x0000][type:0x0000][length:0x00000004, offset:0x00000017]
+    idx_val = 0x00000004
+
+inst_arg[0x00000002]::[type:0x1F, arg_cnt:0x0][0x00]
+
+inst_arg[0x00000003]::[type:0xB, arg_cnt:0x0][0x00]
+
+inst_arg[0x00000004]::[type:0x22, arg_cnt:0x0][0x00]
+
+inst_arg[0x00000005]::[type:0xC, arg_cnt:0x0][0x00]
+-------------------------------------------------------------------------------------

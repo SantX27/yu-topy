@@ -1,0 +1,27 @@
+# General guidelines
+# decoded examples found on scribbles 
+# (too long to put here porcodio)
+
+GENERAL:
+    IF -> 0x1E -> IF[@CND] IFEND[]
+    ELSE -> 0x1F
+
+    ENDOF -> 0xC
+
+TYPES:
+    TYPE -> hex -> usage
+    INT -> 0x24 -> INT[@grr = 69]
+    FLT -> 0x14 -> FLT[@grr = 69]
+    STR -> 0x4B -> STR[$grr = "A"] // work also without apices
+    
+    FONT -> 0x15 -> FONT[..]: 
+        - COLOR=0xffff00 COLOR2=0x0000ff  // gradient
+        - COLOR=0xffff00 // test color
+        - SX=22 SY=24 // text size
+        - BOLD=1
+        - NO=3 // Set the text font to the third font in the list of installed fonts
+        - NAME="ＭＳ 明朝" // specify font
+        # you can put consecuitive instructions inside the []
+
+    
+# ZORRO LOVES YOU TWO
