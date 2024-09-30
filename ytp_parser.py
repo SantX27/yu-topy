@@ -1,25 +1,72 @@
 import os
-# import re
 import codecs
 import struct
 from func import *
 
-# TODO remove
-# def read_extract_yst_list_old(folder_path):
-#     yst_list_path = os.path.join(folder_path, "yst_list.ybn")
-#     if not os.path.exists(yst_list_path):
-#         # We didn't find the file
-#         return 1
+def readExtractYPF(folder_path): #TODO everything
+    DEBUG = True
+
+    ypf_path = "cgsys.ypf"
+    if not os.path.exists(ypf_path):
+        # We didn't find the file
+        return 1
     
-#     # Open yst_list in Shift-JIS
-#     with open(yst_list_path, 'r', encoding='cp932', errors='ignore') as f:
-#         yst_list = f.read()
+    with open(ypf_path, 'rb') as f:
+        ypf_hex = memoryview(f.read())
+    yap(f"Decoding {ypf_path}:", DEBUG)
 
-#     yst_paths = re.findall(r'(?:data)(?:.*?)(?:\.yst|\.txt)', yst_list)
+    # header = 4s
+    # version = i
+    # indexEntryCount = i
+    # indexBlockSize = i
+    # padding = 16x
 
-#     return yst_paths
+    header_fmt = "<4s3i16x"
+    header_hex = ypf_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        'index_entry_count' : header_unpack[2],
+        'index_block_size' : header_unpack[3]
+    }
+    print(header_dict)
+    
+    path_hex = ypf_hex[struct.calcsize(header_fmt):]
+    path_cur = 0
 
-def readExtractYstlist_new(folder_path):
+    # RelativePathCRC = i
+    # RelativePathSize = B
+    # Path = [RelativePathSize]s
+    # Filetype = B
+    # CompFlag = B
+    # DecompressionSize = i
+    # CompressionSize = i
+    # DataOffset = q
+    # DataCRC = i   (murmurhash)
+
+    path_fmt = '<iB'
+    path_unpack = struct.unpack(path_fmt, path_hex[path_cur:struct.calcsize(path_fmt)+path_cur])
+    path_dict = {
+        'relative_path_crc' : path_unpack[0],
+        'relative_path_size' : 256 - path_unpack[1]
+    }
+    path_fmt = f"<iB{path_dict['relative_path_size']}s2B2iqi"
+    path_unpack = struct.unpack(path_fmt, path_hex[path_cur:struct.calcsize(path_fmt)+path_cur])
+    path_dict.update({
+        'relative_path' : path_unpack[2].hex(),
+        'file_type' : path_unpack[3],
+        'comp_flag' : path_unpack[4],
+        'decompression_size' : path_unpack[5],
+        'compression_size' : path_unpack[6],
+        'data_offset' : path_unpack[7],
+        'data_crc' : path_unpack[8]
+    })
+    print(path_dict)
+    
+
+
+def readExtractYSTL(folder_path): #TODO Only on Euphoria, add detection compile flags
     
     DEBUG = True
 
@@ -75,162 +122,359 @@ def readExtractYstlist_new(folder_path):
         header_dict['scripts'].append(script_dict)
         print(header_dict['scripts'][-1]['path'])
 
-def read_extract_ystlist(folder_path):
-    '''Returns {magic,version,numscripts,[{index,pathlength,path,variables,labels},{...}]}'''
-
+def readExtractYSLB(folder_path):
+    
     DEBUG = True
-
-    yst_list_path = os.path.join(folder_path, "yst_list.ybn")
-    if not os.path.exists(yst_list_path):
-        # We didn't find the file
-        return 1
-    
-    decode = {}
-
-    with open(yst_list_path, 'rb') as f:
-        ystHex = f.read().hex()
-    yap(f"Decoding {yst_list_path}:", DEBUG)
-
-    # Setup a cursor that we keep increasing as we read the file
-    cur = 0
-    
-    magic = ystHex[cur:cur+INT]
-    yap(f"Magic: {codecs.decode(magic, 'hex').decode('cp932')}", DEBUG)
-    decode['magic'] = codecs.decode(magic, 'hex').decode('cp932')
-    cur += INT
-
-    version = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Version: {version}", DEBUG)
-    decode['version'] = version
-    cur += INT
-
-    numscripts = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Scripts: {numscripts}", DEBUG)
-    decode['numscripts'] = numscripts
-    cur += INT
-
-    scripts = []
-
-    while(cur < len(ystHex)):
-        yap("", DEBUG)
-        scripts.append({})
-
-        index = le_hex_to_int(ystHex[cur:cur+INT])
-        yap(f"    Index: {index}", DEBUG)
-        scripts[-1]['index'] = index
-        cur += INT
-
-        pathlength = le_hex_to_int(ystHex[cur:cur+INT])
-        yap(f"    PathLength: {pathlength}", DEBUG)
-        scripts[-1]['pathlength'] = pathlength
-        cur += INT
-
-        path = ystHex[cur:cur+pathlength[0]*2]
-        print(path)
-        yap(f"    Path: {codecs.decode(path, 'hex').decode('cp932')}", DEBUG)
-        scripts[-1]['path'] = codecs.decode(path, 'hex').decode('cp932')
-        cur += pathlength[0]*2
-
-        #TOFIX if needed, who cares about file creation date lol get rekt
-        modtime = le_hex_to_int(ystHex[cur:cur+16])
-        print(ystHex[cur:cur+16])
-        print(f"    CreationTime: {modtime}")
-        scripts[-1]['modtime'] = modtime
-        cur += INT*2
-
-        variables = le_hex_to_int(ystHex[cur:cur+INT])
-        print(ystHex[cur:cur+INT])
-        yap(f"    Variables: {variables}", DEBUG)
-        scripts[-1]['variables'] = variables
-        cur += INT
-
-        # This int contains the number of labels in the demo but in euphoria the number of text is stored here
-        # + another int for the label for whatever fucking reason
-        labels = le_hex_to_int(ystHex[cur:cur+INT])
-        print(ystHex[cur:cur+INT])
-        yap(f"    Labels: {labels}", DEBUG)
-        scripts[-1]['labels'] = labels
-        cur += INT
-
-        # numtex, numtex_hex = le_hex_to_int(ystHex[cur:cur+8])
-        # print(f"    NUMTE:{numtex_hex} -> {numtex}")
-        # cur += 8
-    decode['scripts'] = scripts
-    return decode
-
-def read_extract_ysl(folder_path):
-    '''Returns {magic,version,numlabels,[{namelength,name,id,offset,scriptindex},{...}]}'''
-
-    DEBUG = False
 
     ysl_path = os.path.join(folder_path, "ysl.ybn")
     if not os.path.exists(ysl_path):
         # We didn't find the file
         return 1
     
-    decode = {}
-    
     with open(ysl_path, 'rb') as f:
-        ystHex = f.read().hex()
+        ysl_hex = memoryview(f.read())
     yap(f"Decoding {ysl_path}:", DEBUG)
 
-    # Setup a cursor that we keep increasing as we read the file
-    cur = 0
+    # Header = 4s
+    # Version = i
+    # NumLabels = i
+    # LabelRangeStartIndexes = 1024x
+    header_fmt = "<4s2i1024x"
+    header_hex = ysl_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
+    print(header_unpack)
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        'num_labels' : header_unpack[2],
+        #'label_range_start_index' : header_unpack[3],   #we ignore this shit
+        'labels' : []
+    }
+    label_hex = ysl_hex[struct.calcsize(header_fmt):]
+    label_cur = 0
+
+    for label_num in range(header_dict['num_labels']): #cycle
+        # NameLength = B
+        # Name = NameLength s
+        # Id = i
+        # Offset = i
+        # ScriptIndex = h
+        # Padding = 2x
+
+        label_fmt = "<B"
+        label_unpack = struct.unpack(label_fmt, label_hex[label_cur:struct.calcsize(label_fmt)+label_cur])
+        label_dict = {
+            'name_length' : label_unpack[0],
+        }
+        label_fmt = f"<B{label_dict['name_length']}s2Ih2x"
+        label_unpack = struct.unpack(label_fmt, label_hex[label_cur:struct.calcsize(label_fmt)+label_cur])
+        label_dict.update({
+            'name' : codecs.decode(label_unpack[1].hex(), 'hex').decode('cp932'),
+            'id' : label_unpack[2],
+            'offset' : label_unpack[3],
+            'script_index' : label_unpack[4]
+        })
+
+        label_cur += struct.calcsize(label_fmt)
+        header_dict['labels'].append(label_dict)
+    print(header_dict['labels'])
+
+def readExtractYSVR(folder_path):
+
+    DEBUG = True
+
+    ysv_path = os.path.join(folder_path, "ysv.ybn")
+    if not os.path.exists(ysv_path):
+        # We didn't find the file
+        return 1
     
-    magic = ystHex[cur:cur+INT]
-    yap(f"Magic: {codecs.decode(magic, 'hex').decode('cp932')}", DEBUG)
-    decode['magic'] = codecs.decode(magic, 'hex').decode('cp932')
-    cur += INT
+    with open(ysv_path, 'rb') as f:
+        ysv_hex = f.read()
+    yap(f"Decoding {ysv_path}:", DEBUG)
 
-    version = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Version: {version}", DEBUG)
-    decode['version'] = version
-    cur += INT
+    # Header = 4s
+    # Version = i
+    # num_vars = h
 
-    numlabels = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Labels: {numlabels}", DEBUG)
-    decode['numlabels'] = numlabels
-    cur += INT
+    header_fmt = "<4sih"
+    header_hex = ysv_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
 
-    # Ignore labelRangeStartIndexes for now dunno how it works hope i dont need it
-    cur += 2048
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        'num_variables' : header_unpack[2],
+        'variables' : []
+    }
 
-    labels = []
+    # Scope (1 = global, 2 = static) = B
+    # ScriptId = h
+    # VarIndex = h
+    # Type (0 = null, 1 = long, 2 = double, 3 = string) = B
+    # NumDimensions = B
+    # DimensionSize = NumDimensions i
+    # Value
+        # if Type == 1 (long)
+        # if Type == 2 (double)
+        # if Type == 3 {
+        #   ExprLength = H
+        #   Expr[ExprLength] = s
+        #   }
 
-    while(cur < len(ystHex)):
-        yap("", DEBUG)
-        labels.append({})
+    var_hex = ysv_hex[struct.calcsize(header_fmt):]
+    var_cur = 0
 
-        namelength = int(ystHex[cur:cur+BYTE], 16)
-        yap(f"    NameLength: {namelength}", DEBUG)
-        labels[-1]['namelength'] = namelength
-        cur += BYTE
+    for var_num in range(header_dict['num_variables']): #cycle
+        var_fmt = "<B2h2B"
+        var_unpack = struct.unpack(var_fmt, var_hex[var_cur:struct.calcsize(var_fmt)+var_cur])
+        var_dict = {
+            'scope' : var_unpack[0],
+            'script_id' : var_unpack[1],
+            'var_index' : var_unpack[2],
+            'type' : var_unpack[3],
+            'num_dimension' : var_unpack[4],
+        }
 
-        path = ystHex[cur:cur+namelength*2]
-        yap(f"    Name: {codecs.decode(path, 'hex').decode('cp932')}", DEBUG)
-        labels[-1]['name'] = codecs.decode(path, 'hex').decode('cp932')
-        cur += namelength*2
+        match var_dict['type']:
+            case 0: type_unpack = ""  # Value None
+            case 1: type_unpack = "q" # Value q
+            case 2: type_unpack = "d" # Value d
+            case 3: type_unpack = "H" # expr_length H
 
-        id = le_hex_to_int(ystHex[cur:cur+INT])[0]
-        yap(f"    ID: {id}", DEBUG)
-        labels[-1]['id'] = id
-        cur += INT
+        var_fmt = f"<B2h2B{var_dict['num_dimension']}i{type_unpack}"
+        var_unpack = struct.unpack(var_fmt, var_hex[var_cur:struct.calcsize(var_fmt)+var_cur])
+        var_dict.update({
+            'dimension_size' : var_unpack[5:5+var_dict['num_dimension']],
+            'value' : var_unpack[-1]
+        })
+        # print(var_dict)
+        # print(f"Before expr: {var_hex[var_cur:struct.calcsize(var_fmt)+var_cur].hex()}")
+        var_cur += struct.calcsize(var_fmt)
 
-        offset = le_hex_to_int(ystHex[cur:cur+INT])[0]
-        yap(f"    Offset: {offset}", DEBUG)
-        labels[-1]['offset'] = offset
-        cur += INT
+        #Let's get the value of Expr
+        if type_unpack == "H":
+            expr_fmt = f"<{var_dict['value']}s"
+            expr_unpack = struct.unpack(expr_fmt, var_hex[var_cur:struct.calcsize(expr_fmt)+var_cur])
+            var_dict.update({
+                'expr' : expr_unpack
+            })
+            # print(var_dict)
+            # print(f"After expr: {var_hex[var_cur:struct.calcsize(expr_fmt)+var_cur].hex()}")
+            var_cur += struct.calcsize(expr_fmt)
 
-        scriptindex = le_hex_to_int(ystHex[cur:cur+SHORT])[0]
-        yap(f"    ScriptIndex: {scriptindex}", DEBUG)
-        labels[-1]['scriptindex'] = scriptindex
-        cur += SHORT
-
-        # Ignore padding byte
-        cur += BYTE*2
+        header_dict['variables'].append(var_dict)
     
-    decode['labels'] = labels
-    return decode
+    print(prettyDict(header_dict))
+
+def readExtractYSCF(folder_path): 
+
+    DEBUG = True
+
+    yst_list_path = os.path.join(folder_path, "yscfg.ybn")
+    if not os.path.exists(yst_list_path):
+        # We didn't find the file
+        return 1
+    
+    with open(yst_list_path, 'rb') as f:
+        yst_hex = memoryview(f.read())
+    yap(f"Decoding {yst_list_path}:", DEBUG)
+
+    # Header = 4s
+    # Version = i
+    # padding = 4x
+    # compile = i
+    # screenW = i
+    # screenH = i
+    # enable = i
+    # imagetypeslot = B
+    # soundtypeslot = B
+    # thread = i
+    # debugmode = i
+    # sound = i
+    # windowresize = i
+    # windowframe = i
+    # fileprioritydev = i
+    # fileprioritydebug = i
+    # filepriorityrelease = i
+    # padding = 4x
+    # captionlen = h
+    # caption = [captionlen]s
+    header_fmt = "<4si4x4i8B4B5i4xh" #add 3i before 4x for euphoria
+
+    header_hex = yst_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
+    print(header_unpack)
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        #padding
+        'compile' : header_unpack[2],
+        'screen_width' : header_unpack[3],
+        'screen_height' : header_unpack[4],
+        'enable' : header_unpack[5],
+        'image_type_slot' : header_unpack[5:13], #needs 8
+        'sound_type_slot' : header_unpack[13:17], #needs 4
+        'thread' : header_unpack[18],
+        'debugmode' : header_unpack[10],
+        'sound' : header_unpack[20],
+        'window_resize' : header_unpack[21],
+        'window_frame' : header_unpack[22],
+        #TODO Euphoria needs these following bytes, find workaround
+        #'file_priority_dev' : header_unpack[23],
+        #'file_priority_debug' : header_unpack[24],
+        #'file_priority_release' : header_unpack[25],
+        #padding
+        'caption_length' : header_unpack[23],
+    }
+    caption_cur = 0
+    caption_hex = yst_hex[struct.calcsize(header_fmt):]
+    caption_fmt = f"<{header_dict['caption_length']}s"
+    print(header_dict)
+    caption_unpack = struct.unpack(caption_fmt, caption_hex[caption_cur:struct.calcsize(caption_fmt)+caption_cur])
+    header_dict.update({
+        'caption' : codecs.decode(caption_unpack[0].hex(), 'hex').decode('cp932'),
+    })
+    caption_cur += struct.calcsize(caption_fmt)
+    print(header_dict)
+
+def readExtractYSTB(folder_path): # TODO FIX EXTRACT INSTRUCTION AND ATTRIBUTE
+
+    DEBUG = True
+
+    yst_list_path = os.path.join(folder_path, "yst00118.ybn")
+    if not os.path.exists(yst_list_path):
+        # We didn't find the file
+        return 1
+    
+    with open(yst_list_path, 'rb') as f:
+        yst_hex = memoryview(f.read())
+    yap(f"Decoding {yst_list_path}:", DEBUG)
+
+    # Header = 4s
+    # Version = i
+    # NumInstructions = i
+    # InstructionsSize = i
+    # AttributeDescriptorSize = i
+    # AttributeValueSize = i
+    # Line NumberSize = i
+    # padding = 4x
+
+    header_fmt = "<4s6i4x"
+    header_hex = yst_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        'num_instructions' : header_unpack[2],
+        'instruction_size' : header_unpack[3],
+        'attrib_desc_size': header_unpack[4],
+        'attrib_val_size': header_unpack[5],
+        'line_num_size' : header_unpack[6],
+        'instructions' : []
+    }
+    print(header_dict)
+
+    # Finding XOR key.
+    # In the instruction list, END is always placed at the end (duh), and it's values are always
+    # 0C 00 00 00. By XORing it back, we can get the XOR decryption key.
+    # We find it by cutting the header + number of instructions * 4 bytes,
+    # We subtract the last 4 bytes (our END location), then we trim it. 
+    end_instruction = yst_hex[struct.calcsize(header_fmt)+(header_dict['num_instructions']*4)-4:][:4]
+    if end_instruction.hex() != "0c000000":
+        xor_key = f"{int(end_instruction.hex(),16) ^ int("0C000000",16):X}"
+        print(f"Decrypt KEY: {xor_key}")
+        instruction_hex = bytes.fromhex(rolling_xor(yst_hex[struct.calcsize(header_fmt):].hex(), xor_key))
+    else:
+        print("File already decrypted!")
+        instruction_hex = yst_hex[struct.calcsize(header_fmt):]
+        
+    # Opcode = B
+    # numAttribute = B
+    # ? = B
+    # padding = x
+
+    instruction_cur = 0
+
+    instruction_fmt = "<3Bx"
+
+    instruction_dict = {
+
+    }
+
+    instruction_unpack = struct.unpack(instruction_fmt, instruction_hex[instruction_cur:struct.calcsize(instruction_fmt)+instruction_cur])
+    print(instruction_unpack)
+
+def readExtractYSCM(folder_path):
+    
+    DEBUG = True
+
+    ysc_path = os.path.join(folder_path, "ysc.ybn")
+    if not os.path.exists(ysc_path):
+        # We didn't find the file
+        return 1
+    
+    with open(ysc_path, 'rb') as f:
+        ysc_hex = memoryview(f.read())
+    yap(f"Decoding {ysc_path}:", DEBUG)
+
+    # Header = 4s
+    # Version = i
+    # NumCommands = i
+    # Padding = 4x
+    header_fmt = "<4s2i4x"
+
+    header_hex = ysc_hex[:struct.calcsize(header_fmt)]
+    header_unpack = struct.unpack(header_fmt, header_hex)
+    header_dict = {
+        'header' : header_unpack[0],
+        'version' : header_unpack[1],
+        'num_commands' : header_unpack[2],
+        'commands' : []
+    }
+
+    # Name = string_end s x
+    # NumAttrib = B
+
+    command_hex = ysc_hex[struct.calcsize(header_fmt):]
+    command_cur = 0
+
+    # Struct doesn't support null terminated strings ffs
+    for command_num in range(header_dict['num_commands']):
+        command_end = bytes(command_hex[command_cur:]).index(b'\x00')
+        # print(f"Command next zero: {command_end}")
+
+        command_fmt = f"<{command_end}sxB"
+        command_unpack = struct.unpack(command_fmt, command_hex[command_cur:struct.calcsize(command_fmt)+command_cur])
+        command_dict = {
+            'name' : command_unpack[0],
+            'num_attributes' : command_unpack[1],
+            'attributes': []
+        }
+        # print(command_dict)
+        command_cur += struct.calcsize(command_fmt)
+
+        for attribute_num in range(command_dict['num_attributes']):
+            # Name attribute_end s x
+            # Type B
+            # Vaid B
+    
+            if command_dict['num_attributes'] > 0:
+                attribute_end = bytes(command_hex[command_cur:]).index(b'\x00')
+                # print(f"Attribute next zero: {attribute_end}")
+                attribute_fmt = f"<{attribute_end}sx2B"
+                attribute_unpack = struct.unpack(attribute_fmt, command_hex[command_cur:struct.calcsize(attribute_fmt)+command_cur])
+                # print(attribute_unpack)
+                command_cur += struct.calcsize(attribute_fmt)
+                command_dict['attributes'].append({
+                    'name' : attribute_unpack[0],
+                    'type' : attribute_unpack[1],
+                    'vaid' : attribute_unpack[2]
+                })
+
+        # print(command_dict)
+        header_dict['commands'].append(command_dict)
+    print(prettyDict(header_dict))
+        # print("")
 
 def read_extract_yst(folder_path):
     '''Returns {magic,version,numlabels,[{namelength,name,id,offset,scriptindex},{...}]}'''

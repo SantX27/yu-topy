@@ -23,12 +23,20 @@ if __name__ == "__main__":
     # if not os.path.exists(args.output):
     #     os.makedirs(args.output)
 
-    yst_list_decode = readExtractYstlist_new(args.input)
+    #yst_list_decode = readExtractYstlist_new(args.input)
+    #ysl_decode = readExtractYsl_new(args.input)
+    readExtractYPF(args.input)
+    #yscfg_decode = readExtractYscfg(args.input)
+    #yst_decode = readExtractYst(args.input)
+    #ysc_decode = readExtractYsc(args.input)
+    
+    
+    
     #read_extract_ystlist(args.input)
     #ysl_decode = read_extract_ysl(args.input)
     #print(search_value(108, 'scriptindex', ysl_decode['labels']))
     
-    #yst_decode = read_extract_yst(f"{args.input}/yst00108.ybn")
+    # read_extract_yst(f"{args.input}/yst00118.ybn")
     
     # print([item for item in yst_list_decode['scripts'] if item['index'] == 100])
     # print([item for item in ysl_decode['labels'] if item['scriptindex'] == 100])
