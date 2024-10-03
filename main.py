@@ -25,7 +25,8 @@ if __name__ == "__main__":
 
     #yst_list_decode = readExtractYstlist_new(args.input)
     #ysl_decode = readExtractYsl_new(args.input)
-    readExtractYPF(args.input)
+    YTSB = readExtractYSCM(args.input)
+    print(prettyDict(YTSB))
     #yscfg_decode = readExtractYscfg(args.input)
     #yst_decode = readExtractYst(args.input)
     #ysc_decode = readExtractYsc(args.input)
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     #ysl_decode = read_extract_ysl(args.input)
     #print(search_value(108, 'scriptindex', ysl_decode['labels']))
     
-    # read_extract_yst(f"{args.input}/yst00118.ybn")
+    #read_extract_yst(f"{args.input}/yst00108.ybn")
     
     # print([item for item in yst_list_decode['scripts'] if item['index'] == 100])
     # print([item for item in ysl_decode['labels'] if item['scriptindex'] == 100])

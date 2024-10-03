@@ -64,8 +64,6 @@ def readExtractYPF(folder_path): #TODO everything
     })
     print(path_dict)
     
-
-
 def readExtractYSTL(folder_path): #TODO Only on Euphoria, add detection compile flags
     
     DEBUG = True
@@ -120,7 +118,8 @@ def readExtractYSTL(folder_path): #TODO Only on Euphoria, add detection compile 
         })
         script_cur += struct.calcsize(script_fmt)
         header_dict['scripts'].append(script_dict)
-        print(header_dict['scripts'][-1]['path'])
+
+    return header_dict
 
 def readExtractYSLB(folder_path):
     
@@ -177,7 +176,8 @@ def readExtractYSLB(folder_path):
 
         label_cur += struct.calcsize(label_fmt)
         header_dict['labels'].append(label_dict)
-    print(header_dict['labels'])
+    
+    return header_dict
 
 def readExtractYSVR(folder_path):
 
@@ -264,7 +264,7 @@ def readExtractYSVR(folder_path):
 
         header_dict['variables'].append(var_dict)
     
-    print(prettyDict(header_dict))
+    return header_dict
 
 def readExtractYSCF(folder_path): 
 
@@ -335,13 +335,14 @@ def readExtractYSCF(folder_path):
         'caption' : codecs.decode(caption_unpack[0].hex(), 'hex').decode('cp932'),
     })
     caption_cur += struct.calcsize(caption_fmt)
-    print(header_dict)
+    
+    return header_dict
 
-def readExtractYSTB(folder_path): # TODO FIX EXTRACT INSTRUCTION AND ATTRIBUTE
+def readExtractYSTB(folder_path):
 
     DEBUG = True
 
-    yst_list_path = os.path.join(folder_path, "yst00118.ybn")
+    yst_list_path = os.path.join(folder_path, "yst00108.ybn")
     if not os.path.exists(yst_list_path):
         # We didn't find the file
         return 1
@@ -383,26 +384,97 @@ def readExtractYSTB(folder_path): # TODO FIX EXTRACT INSTRUCTION AND ATTRIBUTE
     if end_instruction.hex() != "0c000000":
         xor_key = f"{int(end_instruction.hex(),16) ^ int("0C000000",16):X}"
         print(f"Decrypt KEY: {xor_key}")
-        instruction_hex = bytes.fromhex(rolling_xor(yst_hex[struct.calcsize(header_fmt):].hex(), xor_key))
+        decoded_hex = memoryview(bytes.fromhex(rolling_xor(yst_hex[struct.calcsize(header_fmt):].hex(), xor_key)))
     else:
         print("File already decrypted!")
-        instruction_hex = yst_hex[struct.calcsize(header_fmt):]
+        decoded_hex = yst_hex[struct.calcsize(header_fmt):]
         
-    # Opcode = B
-    # numAttribute = B
-    # ? = B
-    # padding = x
+    # Splitting the lists.
+    # To find peace of mind and not end up crazy, we predefine
+    # the Attributes and AttributeValues lists, by finding their
+    # max byte extension and by splitting the yst_hex according to
+    # their region.
+
+    # Instructions are a group of 4 bytes * their number + the header bytes.
+    instruction_max = (4*header_dict['num_instructions'])
+    # AttributeDescriptors are a group of 12 bytes * their size/12 + instruction_max
+    attrib_desc_max = instruction_max+(12*int(header_dict['attrib_desc_size']/12))
+    # AttributeValues are a single byte * their size + attrib_desc_max
+    attrib_val_max = attrib_desc_max+header_dict['attrib_val_size']
+
+    instruction_hex = decoded_hex[:instruction_max]
+    attrib_desc_hex = decoded_hex[instruction_max:attrib_desc_max]
+    attrib_val_hex = decoded_hex[attrib_desc_max:attrib_val_max]
 
     instruction_cur = 0
+    attrib_desc_cur = 0
 
-    instruction_fmt = "<3Bx"
+    for instruction_num in range(header_dict['num_instructions']):
 
-    instruction_dict = {
+        # Opcode = B
+        # numAttributes = B
+        # ? = B
+        # padding = x
 
-    }
+        instruction_fmt = "<3Bx"
+        instruction_unpack = struct.unpack(instruction_fmt, instruction_hex[instruction_cur:struct.calcsize(instruction_fmt)+instruction_cur])
+        instruction_dict = {
+            'opcode' : hex(instruction_unpack[0]),
+            'num_attributes' : instruction_unpack[1],
+            'missing_na' : instruction_unpack[2],
+            'attributes' : []
+        }
+        instruction_cur += struct.calcsize(instruction_fmt)
+        
+        # Let's get them attribussy
+        for attribute_num in range(instruction_dict['num_attributes']):
+            # ID = h
+            # Type = h
+            # Size = i
+            # OffsetAttribVal = i
 
-    instruction_unpack = struct.unpack(instruction_fmt, instruction_hex[instruction_cur:struct.calcsize(instruction_fmt)+instruction_cur])
-    print(instruction_unpack)
+            attrib_desc_fmt = "<2h2i"
+            attrib_desc_unpack = struct.unpack(attrib_desc_fmt, attrib_desc_hex[attrib_desc_cur:struct.calcsize(attrib_desc_fmt)+attrib_desc_cur])
+            attrib_desc_cur += struct.calcsize(attrib_desc_fmt)
+            attrib_desc_dict = {
+                'id' : attrib_desc_unpack[0],
+                'type' : attrib_desc_unpack[1],
+                'size' : attrib_desc_unpack[2],
+                'offset' : attrib_desc_unpack[3],
+                'attrib_val' : []
+            }
+
+            # Fishing the attribute value
+            single_attrib_val = attrib_val_hex[attrib_desc_dict['offset']:attrib_desc_dict['size']+attrib_desc_dict['offset']]
+
+            # Type = B
+            # Size = B
+            # Padding = x
+            # Value = Size s
+
+            attrib_val_cur = 0
+            
+            while True:
+                try:
+                    attrib_val_fmt = "<2Bx"
+                    attrib_val_unpack = struct.unpack(attrib_val_fmt, single_attrib_val[attrib_val_cur:struct.calcsize(attrib_val_fmt)+attrib_val_cur])
+                    attrib_val_dict = {
+                        'type' : hex(attrib_val_unpack[0]),
+                        'size' : attrib_val_unpack[1]
+                    }
+                    attrib_val_fmt = f"<2Bx{attrib_val_dict['size']}s"
+                    attrib_val_unpack = struct.unpack(attrib_val_fmt, single_attrib_val[attrib_val_cur:struct.calcsize(attrib_val_fmt)+attrib_val_cur])
+                    attrib_val_cur += struct.calcsize(attrib_val_fmt)
+                    attrib_val_dict['value'] = attrib_val_unpack[2].hex()
+                    attrib_desc_dict['attrib_val'].append(attrib_val_dict)
+                except struct.error:
+                    break
+            
+            instruction_dict['attributes'].append(attrib_desc_dict)
+
+        header_dict['instructions'].append(instruction_dict)
+
+    return header_dict
 
 def readExtractYSCM(folder_path):
     
@@ -473,196 +545,6 @@ def readExtractYSCM(folder_path):
 
         # print(command_dict)
         header_dict['commands'].append(command_dict)
-    print(prettyDict(header_dict))
-        # print("")
 
-def read_extract_yst(folder_path):
-    '''Returns {magic,version,numlabels,[{namelength,name,id,offset,scriptindex},{...}]}'''
+    return header_dict
 
-    DEBUG = True
-
-    ysl_path = folder_path
-    if not os.path.exists(ysl_path):
-        # We didn't find the file
-        return 1
-    
-    decode = {}
-    
-    with open(ysl_path, 'rb') as f:
-        ystHex = f.read().hex()
-    yap(f"Decoding {ysl_path}:", DEBUG)
-
-    # Setup a cursor that we keep increasing as we read the file
-    cur = 0
-
-    magic = ystHex[cur:cur+INT]
-    yap(f"Magic: {codecs.decode(magic, 'hex').decode('cp932')}", DEBUG)
-    decode['magic'] = codecs.decode(magic, 'hex').decode('cp932')
-    cur += INT
-
-    version = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Version: {version}", DEBUG)
-    decode['version'] = version
-    cur += INT
-
-    numinstructions = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"Instructions: {numinstructions}", DEBUG)
-    decode['numinstructions'] = numinstructions
-    cur += INT
-
-    instructionsize = le_hex_to_int(ystHex[cur:cur+INT])
-    yap(f"InstructionsSize: {instructionsize}", DEBUG)
-    decode['instructionsize'] = instructionsize
-    cur += INT
-
-    attribdesc = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"attributedesc: {attribdesc}", DEBUG)
-    decode['attribdesc'] = attribdesc
-    cur += INT
-
-    attribvalue = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"attribvalue: {attribvalue}", DEBUG)
-    decode['attribvalue'] = attribvalue
-    cur += INT
-
-    linenumsize = le_hex_to_int(ystHex[cur:cur+INT])[0]
-    yap(f"linenumsize: {linenumsize}", DEBUG)
-    decode['linenumsize'] = linenumsize
-    cur += INT
-
-    # Padding
-    cur += INT
-
-    # Finding XOR key.
-    # In the instruction list, END is always placed at the end (duh), and it's values are always
-    # 0C 00 00 00. By XORing it back, we can get the XOR decryption key.
-    endinstr = ystHex[cur+(numinstructions*INT)-INT:][:INT]
-    decrypthex = f"{(int(endinstr, 16) ^ int("0C000000",16)):X}"
-    yap(f"Decrypt KEY: {decrypthex}", DEBUG)
-
-    # Using the decrypted list to continue:
-    decrYstHex = rolling_xor(ystHex[cur:],decrypthex)
-    # If true, prints back the decrypted file for referencing
-    #yap(decrYstHex, True)
-    
-    # Initialize a new set of cursor variables
-    cur, attribCur = 0, 0
-
-    instrMax = (BYTE*4)*numinstructions
-    attribMax = ((SHORT*2+INT*2)*int(attribdesc/12))+instrMax
-    attribVarMax = (BYTE*attribvalue)+attribMax
-
-    attribCur += INT
-    print("Instructions:")
-    print(decrYstHex[:instrMax])
-    print("Attributes:")
-    print(decrYstHex[instrMax:attribMax])
-    print("AttributeValues:")
-    print(decrYstHex[attribMax:attribVarMax])
-    print("LineNumbers:")
-    print(decrYstHex[attribVarMax:])
-
-    instrSpace = decrYstHex[:instrMax]
-    attribSpace = decrYstHex[instrMax:attribMax]
-    attribVarSpace = decrYstHex[attribMax:attribVarMax]
-    lineNumSpace = decrYstHex[attribVarMax:]
-
-    for i in range(0, numinstructions):
-        yap(f"\nInstr: {i}", DEBUG)
-
-        opcode = le_hex_to_int(decrYstHex[cur:cur+BYTE])[1]
-        yap(f"opcode: {opcode}", DEBUG)
-        decode['opcode'] = opcode
-        cur += BYTE
-
-        numattrib = le_hex_to_int(decrYstHex[cur:cur+BYTE])[0]
-        yap(f"numattrib: {numattrib}", DEBUG)
-        decode['numattrib'] = numattrib
-        cur += BYTE
-
-        # Skipping unknown byte and padding (byte)
-        # TODO Check if they're useful somehow
-        # skipped = le_hex_to_int(decrYstHex[cur:cur+SHORT])
-        # yap(f"skipped: {skipped}", DEBUG)
-        cur += SHORT
-
-        for attribIndex in range(0, numattrib):
-            yap(f"-> Attrib: {attribIndex}", DEBUG)
-
-            # debugtxt = decrYstHex[cur:cur+INT*4]
-            # print(debugtxt)
-            # yap(f"debugtxt: {codecs.decode(debugtxt, 'hex').decode('cp932')}", DEBUG)
-            # decode['debugtxt'] = codecs.decode(debugtxt, 'hex').decode('cp932')
-
-            id = le_hex_to_int(attribSpace[attribCur:attribCur+SHORT])
-            yap(f"id: {id}", DEBUG)
-            decode['id'] = id
-            attribCur += SHORT
-
-            type = le_hex_to_int(attribSpace[attribCur:attribCur+SHORT])
-            yap(f"type: {type}", DEBUG)
-            decode['type'] = type
-            attribCur += SHORT
-
-            size = le_hex_to_int(attribSpace[attribCur:attribCur+INT])[0]
-            yap(f"size: {size}", DEBUG)
-            decode['size'] = size
-            attribCur += INT
-
-            offset = le_hex_to_int(attribSpace[attribCur:attribCur+INT])[0]
-            yap(f"offset: {offset}", DEBUG)
-            decode['offset'] = offset
-            attribCur += INT
-
-            # The attributes are stored in a separate portion of the file, using a wonky mixed-case format
-            attribVarHex = attribVarSpace[offset*BYTE:offset*BYTE+size*BYTE]
-            print(attribVarHex)
-            attribVarCur = 0
-            decAttrib = {}
-            while(len(attribVarHex) > attribVarCur):
-                len(attribVarHex[attribVarCur:])
-                decAttrib['type'] = attribVarHex[attribVarCur:attribVarCur+BYTE]
-                attribVarCur += BYTE
-                decAttrib['size'] = int(attribVarHex[attribVarCur:attribVarCur+BYTE], 16)
-                attribVarCur += BYTE*2 #Jumping ahead of padding
-                decAttrib['value'] = attribVarHex[attribVarCur:attribVarCur+BYTE*decAttrib['size']]
-                attribVarCur += BYTE*decAttrib['size']
-                print(decAttrib)
-            # value = le_hex_to_int(attribVarSpace[offset*BYTE:offset*BYTE+size*BYTE])[0]
-            # yap(f"value: {value}", DEBUG)
-            # decode['value'] = value
-            # attribVarCur += offset*BYTE
-
-
-    
-    # print(decrYstHex[cur:])
-
-    # for i in range(0, int(attribdesc/12)):
-    #     yap(f"\nAttrib: {i}", DEBUG)
-
-    #     # debugtxt = decrYstHex[cur:cur+INT*4]
-    #     # print(debugtxt)
-    #     # yap(f"debugtxt: {codecs.decode(debugtxt, 'hex').decode('cp932')}", DEBUG)
-    #     # decode['debugtxt'] = codecs.decode(debugtxt, 'hex').decode('cp932')
-
-    #     id = le_hex_to_int(decrYstHex[cur:cur+SHORT])
-    #     yap(f"id: {id}", DEBUG)
-    #     decode['id'] = id
-    #     cur += SHORT
-
-    #     type = le_hex_to_int(decrYstHex[cur:cur+SHORT])
-    #     yap(f"type: {type}", DEBUG)
-    #     decode['type'] = type
-    #     cur += SHORT
-
-    #     size = le_hex_to_int(decrYstHex[cur:cur+INT])
-    #     yap(f"size: {size}", DEBUG)
-    #     decode['size'] = size
-    #     cur += INT
-
-    #     offset = le_hex_to_int(decrYstHex[cur:cur+INT])
-    #     yap(f"offset: {offset}", DEBUG)
-    #     decode['offset'] = offset
-    #     cur += INT
-
-    # print(decrYstHex[cur:])
