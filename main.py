@@ -3,6 +3,7 @@ import os
 # import shutil
 import argparse
 from ytp_parser import *
+from expr_parser import *
 from func import *
 
 if __name__ == "__main__":
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     print("---------------")
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', dest='input', type=str, required=True, help='Folder that contains the decrypted yu-ris files')
-    # parser.add_argument('-o', '--output', dest='output', type=str, required=True, help='Folder where to drop the generated ren\'py files')
+    parser.add_argument('-o', '--output', dest='output', type=str, required=True, help='Folder where to drop the generated ren\'py files')
     #parser.add_argument('-d', '--debug', action='store_true', help='Let the program yap about what it\'s doing behind the scenes')
     args = parser.parse_args()
 
@@ -20,17 +21,57 @@ if __name__ == "__main__":
         print(f"Tried to access: {args.input}")
         quit()
 
-    # if not os.path.exists(args.output):
-    #     os.makedirs(args.output)
+    YSCF = readExtractYSCF(args.input)
+    YSTL = readExtractYSTL(args.input, YSCF['caption'])
+    YSLB = readExtractYSLB(args.input)
+    YSVR = readExtractYSVR(args.input)
+    YSCM = readExtractYSCM(args.input)
 
-    #yst_list_decode = readExtractYstlist_new(args.input)
-    #ysl_decode = readExtractYsl_new(args.input)
-    YTSB = readExtractYSCM(args.input)
-    print(prettyDict(YTSB))
-    #yscfg_decode = readExtractYscfg(args.input)
-    #yst_decode = readExtractYst(args.input)
-    #ysc_decode = readExtractYsc(args.input)
+    with open(os.path.join(args.output, "yst_list.ytp"), 'w') as f:
+        f.write(prettyDict(YSTL))
+
+    with open(os.path.join(args.output,"ysl.ytp"), 'w') as f:
+        f.write(prettyDict(YSLB))
+
+    with open(os.path.join(args.output, "ysv.ytp"), 'w') as f:
+        f.write(prettyDict(YSVR))
+
+    with open(os.path.join(args.output, "yscfg.ytp"), 'w') as f:
+        f.write(prettyDict(YSCF))
+
+    with open(os.path.join(args.output, "ysc.ytp"), 'w') as f:
+        f.write(prettyDict(YSCM))
+
+    # Read all yst00*.ybn files, excluding eris
+    for num_script, script in enumerate(YSTL['scripts']):
+        if "eris" in YSTL['scripts'][num_script]['path']:
+            print("Eris file, skipping...")
+            pass
+        else:
+            yst_index_name = "yst" + str(script['index']).zfill(5) + ".ybn"
+            
+            YSTB = readExtractYSTB(os.path.join(args.input, yst_index_name))
+            
+            with open(os.path.join(args.output, yst_index_name + ".ytp"), 'w') as f:
+                f.write(prettyDict(YSTB))
+            yap(f"Wrote {os.path.join(args.output, yst_index_name + ".ytp")}", True)
+
+            try:
+                if YSTB != 1:
+                    parsed = instructionParser(script['index'], YSTB, YSCM, YSTL, YSVR, YSLB)
+                        
+                    with open(os.path.join(args.output, yst_index_name + ".ytp.parsed"), 'w') as f:
+                        f.write(prettyDict(parsed))
+                    yap(f"Wrote {os.path.join(args.output, yst_index_name + ".ytp.parsed")}", True)
+
+            except Exception as e:
+                print(e)
+                pass
+
+    # print(prettyDict(instructionParser(YSTB, YSCM, YSTL)))
+            
     
+
     
     
     #read_extract_ystlist(args.input)

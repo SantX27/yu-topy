@@ -1,3 +1,4 @@
+import json
 from itertools import cycle
 
 #Define globals
@@ -20,11 +21,14 @@ def search_value(value, key, list):
     '''Searches value for key in a list of dictionaries'''
     return [item for item in list if item[key] == value]
 
+def prettyDict(dict):
+    return json.dumps(dict, indent=4, default=str)
+
 def yap(text = "", debug_state = False):
     if debug_state:
         print(text)
     else:
-        pass
+        print(text)
 
 def rolling_xor(cryptedstring, key):
     '''Unpacks the single hex digits, XOR them together, packs them and then returns the xor-decrypted string'''
