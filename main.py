@@ -60,8 +60,10 @@ if __name__ == "__main__":
                 if YSTB != 1:
                     parsed = instructionParser(script['index'], YSTB, YSCM, YSTL, YSVR, YSLB)
                         
+                    yurisPrint(parsed)
                     with open(os.path.join(args.output, yst_index_name + ".ytp.parsed"), 'w') as f:
-                        f.write(prettyDict(parsed))
+                        #f.write(prettyDict(parsed))
+                        f.write(yurisPrint(parsed))
                     yap(f"Wrote {os.path.join(args.output, yst_index_name + ".ytp.parsed")}", True)
 
             except Exception as e:

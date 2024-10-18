@@ -96,7 +96,7 @@ def instructionParser(script_index, YSTB, YSCM, YSTL, YSVR, YSLB):
                     case "0x48":
                             value = f"{bytes.fromhex(attrib_val['value'][:2]).decode('cp932')}{le_hex_to_int(attrib_val['value'][2:])[0]}"
                     case _:
-                            value = f"UNMAPPED {attrib_val['arg_type']}: {attrib_val['value']}!!!"
+                            value = f"UNMAPPED {attrib_val['arg_type']}: {attrib_val['value']} !!!"
                 
                 attribute_dict['attrib_values'].append(value)
             parsed_script[-1]['attributes'].append(attribute_dict)

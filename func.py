@@ -30,6 +30,32 @@ def yap(text = "", debug_state = False):
     else:
         print(text)
 
+def yurisPrint(script):
+    format = ""
+    for instruction in script:
+        match instruction['type']:
+            case "label":
+                format += "\n"
+                format += f"# {instruction['value']}"
+            case "instruction":
+                format += f"\\ {instruction['opcode']}"
+                for attribute in instruction['attributes']:
+                    if len(attribute['attrib_values']) > 0:
+                        try:
+                            format += f" [{attribute['argument']} ="
+                        except KeyError:
+                            format += f" ["
+                        for i,value in enumerate(attribute['attrib_values']):
+                            if i == len(attribute['attrib_values'])-1:
+                                format += f" {value}"
+                            else:
+                                format += f" {value},"
+                        format += "]"
+            case _:
+                print("What the fuck dude HOW")
+        format += "\n"
+    return format
+
 def rolling_xor(cryptedstring, key):
     '''Unpacks the single hex digits, XOR them together, packs them and then returns the xor-decrypted string'''
     return ''.join(f"{(int(c, 16)^int(k, 16)):x}" for c,k in zip(cryptedstring, cycle(key)))
